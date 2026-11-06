@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Decompôr</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #fff; text-align: center; padding: 40px; }
+        h1 { color: #1DB954; }
+        .upload-box { border: 2px dashed #555; padding: 40px; border-radius: 10px; cursor: pointer; margin-bottom: 20px; }
+        .upload-box:hover { border-color: #1DB954; }
+        .hidden { display: none; }
+        .info-card { background: #1e1e1e; padding: 20px; border-radius: 10px; margin-bottom: 20px; display: inline-block; text-align: left; }
+        .stem-player { background: #282828; padding: 15px; margin: 10px 0; border-radius: 8px; text-align: left; }
+        audio { width: 100%; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Decompôr</h1>
+    <p>Análise e Separação de Faixas com IA Open Source</p>
+
+    <div class="upload-box" id="drop-zone">
+        <p>Clique aqui ou arraste seu arquivo .mp3 ou .wav</p>
+        <input type="file" id="file-input" accept="audio/*" style="display:none;">
+    </div>
+    
+    <div id="loading" class="hidden"><h2>⏳ Processando... (Aguarde)</h2></div>
+
+    <div id="results" class="hidden">
+        <div class="info-card">
+            <h3>🎼 Análise Musical</h3>
+            <p><strong>BPM:</strong> <span id="bpm"></span></p>
+            <p><strong>Tom:</strong> <span id="tom"></span></p>
+        </div>
+        <h3>🎛️ Stems Separados</h3>
+        <div id="players"></div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#1DB954'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#555'; });
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.style.borderColor = '#555'; handleFile(e.dataTransfer.files[0]); });
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        async function handleFile(file) {
+            if(!file) return;
+            dropZone.classList.add('hidden');
+            loading.classList.remove('hidden');
+            const formData = new FormData();
+            formData.append("file", file);
+            const response = await fetch('/upload/', { method: 'POST', body: formData });
+            const data = await response.json();
+            pollResults(data.file_id);
+        }
+
+        async function pollResults(fileId) {
+            const interval = setInterval(async () => {
+                const res = await fetch(`/results/${fileId}`);
+                const data = await res.json();
+                if (data.bpm) {
+                    clearInterval(interval);
+                    showResults(data);
+                }
+            }, 5000);
+        }
+
+        function showResults(data) {
+            loading.classList.add('hidden');
+            results.classList.remove('hidden');
+            document.getElementById('bpm').innerText = data.bpm;
+            document.getElementById('tom').innerText = data.tom;
+            const playersDiv = document.getElementById('players');
+            const stems = ['vocals', 'drums', 'bass', 'other'];
+            const nomes = { vocals: '🎤 Vocais', drums: '🥁 Bateria', bass: '🎸 Baixo', other: '🎹 Outros' };
+            stems.forEach(stem => {
+                playersDiv.innerHTML += `
+                    <div class="stem-player">
+                        <strong>${nomes[stem]}</strong>
+                        <audio controls src="${data.stems[stem]}"></audio>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
